@@ -66,9 +66,33 @@ def fetch_eastmoney_news():
         return []
 
 
+def fetch_wallstreet():
+    """华尔街见闻实时快讯"""
+    url = "https://api.wallstreetcn.com/apiv1/content/lives"
+    params = {"channel": "global-channel", "limit": 25}
+    try:
+        r = requests.get(url, params=params, headers=HEADERS, timeout=15)
+        data = r.json()
+        items = []
+        for item in data.get("data", {}).get("items", [])[:25]:
+            title = item.get("content_text", "") or item.get("title", "")
+            cid = item.get("id", "")
+            if title and cid:
+                items.append({
+                    "source": "华尔街见闻",
+                    "title": title[:80],
+                    "summary": (item.get("content_text", "") or "")[:200],
+                    "link": f"https://wallstreetcn.com/livenews/{cid}",
+                })
+        print(f"  华尔街见闻: {len(items)} 条")
+        return items
+    except Exception as e:
+        print(f"  华尔街见闻 失败: {e}"); return []
+
+
 def fetch_sina():
-    """新浪财经 — 备用 lid 参数"""
-    for lid in ["2516", "2509", "2512"]:
+    """新浪财经 — 多 lid 轮询"""
+    for lid in ["2516", "2509", "2512", "2516", "1686"]:
         url = "https://feed.mix.sina.com.cn/api/roll/get"
         params = {"pageid": "153", "lid": lid, "k": "", "num": "20", "page": "1"}
         try:
@@ -87,26 +111,6 @@ def fetch_sina():
         except Exception:
             continue
     print(f"  新浪财经: 0 条"); return []
-
-
-def fetch_people():
-    """人民网财经 RSS"""
-    import xml.etree.ElementTree as ET
-    url = "http://www.people.com.cn/rss/finance.xml"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        r.raise_for_status()
-        root = ET.fromstring(r.content)
-        items = []
-        for item in root.iter("item"):
-            items.append({"source": "人民网财经",
-                          "title": item.findtext("title", "").strip(),
-                          "summary": re.sub(r"<[^>]+>", "", item.findtext("description", ""))[:200],
-                          "link": item.findtext("link", "").strip()})
-        print(f"  人民网财经: {len(items)} 条")
-        return items[:20]
-    except Exception as e:
-        print(f"  人民网财经 失败: {e}"); return []
 
 
 # ════════════════════════════════════════════
@@ -149,6 +153,7 @@ def fetch_news(limit=40):
     fetchers = [
         ("东方财富", fetch_eastmoney),
         ("东方财富快讯", fetch_eastmoney_news),
+        ("华尔街见闻", fetch_wallstreet),
         ("新浪财经", fetch_sina),
     ]
     all_items = []
@@ -164,8 +169,31 @@ def fetch_news(limit=40):
     before = len(all_items)
     deduped = deduplicate(all_items)
     hot = sum(1 for it in deduped if it["source"].startswith("🔥"))
+    # 平均分配：每个源取等量的条目
+    from collections import Counter as _Ctr
+    source_items = {}
+    for it in deduped:
+        # 用原始源名分组（去除🔥前缀）
+        src = it["source"].replace("🔥 ", "")
+        source_items.setdefault(src, []).append(it)
+    # 轮流从各源取，直到达到 limit
+    result = []
+    sources = list(source_items.keys())
+    idx = [0] * len(sources)
+    while len(result) < limit:
+        added = False
+        for i, src in enumerate(sources):
+            if idx[i] < len(source_items[src]):
+                result.append(source_items[src][idx[i]])
+                idx[i] += 1
+                added = True
+        if not added:
+            break  # 所有源都取完了
     print(f"\n  去重前 {before} → 去重后 {len(deduped)} ({hot} 条多源重点)")
-    return deduped[:limit]
+    src_final = _Ctr(it["source"] for it in result)
+    for s, n in src_final.most_common():
+        print(f"    {s}: {n}")
+    return result[:limit]
 
 
 if __name__ == "__main__":
