@@ -29,6 +29,16 @@ print("="*60)
 results = news.analyze_news(items)
 
 print("\n" + "="*60)
+print("💡 生成选股评分...")
+print("="*60)
+import picks
+picks_cn = picks.score_stocks_cn(results)
+picks_report = picks.gen_picks_report_cn(picks_cn, {"total": len(items)})
+picks_path = Path(__file__).parent / "picks_cn.md"
+picks_path.write_text(picks_report, encoding="utf-8")
+print(f"  选股报告: {picks_path} ({len(picks_cn)} 只)")
+
+print("\n" + "="*60)
 print("📝 生成 Markdown 报告...")
 print("="*60)
 report = news.generate_report(results)

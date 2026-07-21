@@ -86,8 +86,9 @@ def index():
 <div class="nav">
   <a href="/">🇨🇳 A股</a>
   <a href="/us">🇺🇸 美股</a>
+  <a href="/picks" style="color:#d97706">💡 选股</a>
   <a href="/history">📋 历史</a>
-  <a href="/refresh" style="color:#059669" title="手动刷新">🔄 刷新</a>
+  <a href="/refresh" style="color:#059669">🔄 刷新</a>
 </div>
 {html}
 <div class="meta">📅 更新于 {update_time} · 下次自动刷新 {next_str} · 间隔 6 小时</div>
@@ -140,24 +141,24 @@ def _next_refresh_time():
     return None
 
 def _do_refresh():
-    """后台跑 run.py 生成新报告"""
+    """后台跑 run.py + run_us.py 生成报告和选股"""
     global _last_refresh
     with _refresh_lock:
         venv_python = str(HERE.parent / ".venv" / "Scripts" / "python.exe")
         if not os.path.exists(venv_python):
             venv_python = sys.executable
-        try:
-            subprocess.run(
-                [venv_python, str(HERE / "run.py")],
-                cwd=str(HERE),
-                timeout=300,
-                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-                capture_output=True,
-            )
-            _last_refresh = _bjnow()
-            print(f"[refresh] ✅ 报告已更新 {_last_refresh}")
-        except Exception as e:
-            print(f"[refresh] ❌ {e}")
+        for script in ["run.py", "run_us.py"]:
+            try:
+                subprocess.run(
+                    [venv_python, str(HERE / script)],
+                    cwd=str(HERE), timeout=300,
+                    env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                    capture_output=True,
+                )
+            except Exception as e:
+                print(f"[refresh:{script}] ❌ {e}")
+        _last_refresh = _bjnow()
+        print(f"[refresh] ✅ 完成 {_last_refresh}")
 
 def _scheduler():
     """定时调度：每 REFRESH_INTERVAL 小时跑一次"""
@@ -206,6 +207,46 @@ def us_index():
 </div>
 {html}
 <div class="meta">📅 更新于 {update_time} · 数据来源: Yahoo Finance · CNBC · Google News | AI: 通义千问</div>
+</body></html>"""
+
+@app.route("/picks")
+def picks_cn():
+    """A股选股页面"""
+    path = HERE / "picks_cn.md"
+    if not path.exists():
+        return f"<html><head><meta charset=utf-8><style>{CSS}</style></head><body><div class=err><h2>📭 暂无选股数据</h2></div></body></html>"
+    raw = path.read_text(encoding="utf-8")
+    html = md_lib.markdown(raw, extensions=["tables"])
+    return f"""<!DOCTYPE html>
+<html lang=zh-CN>
+<head><meta charset=utf-8><title>💡 A股选股</title><style>{CSS}</style></head>
+<body>
+<div class=nav>
+  <a href="/">🇨🇳 A股</a><a href="/us">🇺🇸 美股</a>
+  <a href="/picks">💡 A股选股</a><a href="/picks/us">💡 美股选股</a>
+  <a href="/history">📋 历史</a>
+</div>
+{html}
+</body></html>"""
+
+@app.route("/picks/us")
+def picks_us():
+    """美股选股页面"""
+    path = HERE / "picks_us.md"
+    if not path.exists():
+        return f"<html><head><meta charset=utf-8><style>{CSS}</style></head><body><div class=err><h2>📭 No picks data yet</h2></div></body></html>"
+    raw = path.read_text(encoding="utf-8")
+    html = md_lib.markdown(raw, extensions=["tables"])
+    return f"""<!DOCTYPE html>
+<html lang=zh-CN>
+<head><meta charset=utf-8><title>💡 US Picks</title><style>{CSS}</style></head>
+<body>
+<div class=nav>
+  <a href="/">🇨🇳 A股</a><a href="/us">🇺🇸 美股</a>
+  <a href="/picks">💡 A股选股</a><a href="/picks/us">💡 美股选股</a>
+  <a href="/history">📋 历史</a>
+</div>
+{html}
 </body></html>"""
 
 @app.route("/health")
