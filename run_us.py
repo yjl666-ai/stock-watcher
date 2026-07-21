@@ -81,24 +81,24 @@ def gen_report_us(results):
     top_tickers = tickers.most_common(6)
 
     lines = [
-        f"# 📊 US Market Watch · {today}",
+        f"# 📊 美股市场观察 · {today}",
         "",
-        f"**Sources**: {src_lines}",
+        f"**数据来源**: {src_lines}",
         "",
         "---",
         "",
-        "## 📈 Market Sentiment",
+        "## 📈 市场情绪",
         "",
-        f"| Score | Direction | Bullish | Bearish | Neutral |",
-        f"|-------|-----------|---------|---------|---------|",
+        f"| 评分 | 方向 | 看涨 | 看跌 | 中性 |",
+        f"|------|------|-----|-----|-----|",
         f"| {score}/100 | {label} | {len(bullish)} | {len(bearish)} | {len(neutral)} |",
         "",
         "---",
         "",
-        "## 🔥 Hot Sectors",
+        "## 🔥 热门板块",
         "",
-        "| Sector | Heat |",
-        "|--------|------|",
+        "| 板块 | 热度 |",
+        "|------|------|",
     ]
     max_h = max(abs(v) for _, v in heatmap) if heatmap else 1
     for name, w in heatmap:
@@ -107,21 +107,20 @@ def gen_report_us(results):
         lines.append(f"| {tag} {name} | {bar} {w:+d} |")
 
     if top_tickers:
-        lines.extend(["", "---", "", "## 💹 Top Tickers Mentioned", ""])
+        lines.extend(["", "---", "", "## 💹 热门个股提及", ""])
         for t, c in top_tickers:
-            lines.append(f"- **${t}** ({c} mentions)")
+            lines.append(f"- **${t}** ({c} 次)")
 
     lines.extend(["", "---", ""])
 
-    for label, items, emoji in [("🟢 Bullish", bullish, "🟢"), ("🔴 Bearish", bearish, "🔴"), ("⚪ Neutral", neutral, "⚪")]:
+    for label, items, emoji in [("🟢 看涨", bullish, "🟢"), ("🔴 看跌", bearish, "🔴"), ("⚪ 中性", neutral, "⚪")]:
         if not items: continue
         lines.append(f"## {label} ({len(items)})")
         for r in items:
             sectors = ", ".join(r.get("sectors", [])) or "—"
-            tickers = ", ".join(f"${t}" for t in r.get("tickers", [])) or "—"
             lines.append(f"- **{r['title']}**")
-            lines.append(f"  - Source: [{r['source']}]({r['link']})")
-            lines.append(f"  - Sectors: {sectors}  |  Tickers: {tickers}")
+            lines.append(f"  - 来源: [{r['source']}]({r['link']})")
+            lines.append(f"  - 板块: {sectors}")
             lines.append(f"  - {r['impact']}")
             lines.append("")
 

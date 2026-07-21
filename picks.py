@@ -7,7 +7,6 @@ from collections import Counter
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
-# ════ 配置 ════
 SOURCE_WEIGHTS = {
     "华尔街见闻": 1.2, "东方财富快讯": 1.1, "东方财富": 1.0, "新浪财经": 0.9,
     "Yahoo Finance": 1.0, "CNBC": 1.1, "Google News": 0.9,
@@ -18,290 +17,163 @@ def _source_weight(source):
         if k in source: return v
     return 1.0
 
-
 # ════ AI ticker 提取 ════
 
+KNOWN_US = {
+    "apple": ("AAPL","Apple"), "amazon": ("AMZN","Amazon"), "tesla": ("TSLA","Tesla"),
+    "nvidia": ("NVDA","NVIDIA"), "microsoft": ("MSFT","Microsoft"), "google": ("GOOGL","Google"),
+    "meta": ("META","Meta"), "netflix": ("NFLX","Netflix"), "intel": ("INTC","Intel"),
+    "amd": ("AMD","AMD"), "coca-cola": ("KO","Coca-Cola"), "coca cola": ("KO","Coca-Cola"),
+    "walmart": ("WMT","Walmart"), "exxon": ("XOM","Exxon"), "jpmorgan": ("JPM","JPMorgan"),
+    "bank of america": ("BAC","BofA"), "goldman": ("GS","Goldman Sachs"),
+    "morgan stanley": ("MS","Morgan Stanley"), "berkshire": ("BRK.B","Berkshire"),
+    "nike": ("NKE","Nike"), "starbucks": ("SBUX","Starbucks"), "disney": ("DIS","Disney"),
+    "pfizer": ("PFE","Pfizer"), "moderna": ("MRNA","Moderna"), "uber": ("UBER","Uber"),
+    "salesforce": ("CRM","Salesforce"), "ibm": ("IBM","IBM"), "oracle": ("ORCL","Oracle"),
+    "general motors": ("GM","GM"), "ford": ("F","Ford"), "boeing": ("BA","Boeing"),
+    "palantir": ("PLTR","Palantir"), "trump media": ("DJT","Trump Media"),
+    "samsung": ("SSNLF","Samsung"), "alibaba": ("BABA","Alibaba"),
+    "jd.com": ("JD","JD.com"), "venture global": ("VG","Venture Global"),
+}
+
 def extract_us_tickers(items):
-    """用 AI 从美股新闻标题批量提取公司→ticker"""
     import news
     titles = "\n".join(f"{i+1}. {it['title'][:100]}" for i, it in enumerate(items[:30]))
-    prompt = f"""Extract publicly traded US companies from these headlines.
-For each company found, provide the stock ticker symbol.
+    prompt = f"从以下英文财经新闻标题中提取被提及的美股上市公司及股票代码。\n\n{titles}\n\n只返回JSON：[{{\"ticker\":\"AAPL\",\"company\":\"Apple\"}}, ...]"
 
-{titles}
-
-Reply in JSON array only:
-[{{"ticker": "AAPL", "company": "Apple"}}, {{"ticker": "TSLA", "company": "Tesla"}}, ...]
-Only include real, verifiable US stock tickers. If a company isn't publicly traded, skip it."""
-
+    result = {}
+    for it in items:
+        t = it["title"].lower()
+        for kw, (ticker, name) in KNOWN_US.items():
+            if kw in t:
+                result[ticker] = name
     try:
         text = news.call_qwen(prompt)
         m = re.search(r'\[.*?\]', text, re.DOTALL)
         if m:
-            tickers = json.loads(m.group())
-            return {t["ticker"].upper(): t.get("company", "") for t in tickers}
-    except Exception:
-        pass
-    return {}
-
-def _recency_weight(date_str: str) -> float:
-    """越新权重越高。1天前=1.0, 2天前=0.8, 3天前=0.5"""
-    try:
-        dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
-        days = (datetime.now() - dt).days
-        if days <= 0: return 1.0
-        if days == 1: return 0.9
-        if days == 2: return 0.7
-        if days == 3: return 0.5
-        return max(0.2, 1.0 - days * 0.1)
-    except:
-        return 1.0
-
+            for t in json.loads(m.group()):
+                result[t["ticker"].upper()] = t.get("company","")
+    except: pass
+    return result
 
 # ════ AI A股公司提取 ════
 
 def extract_cn_stocks(items):
-    """用 AI 从A股新闻标题批量提取公司→代码"""
     import news
     titles = "\n".join(f"{i+1}. {it['title'][:100]}" for i, it in enumerate(items[:30]))
-    prompt = f"""从以下财经新闻标题中提取被提及的A股上市公司及其股票代码。
-
-{titles}
-
-只返回 JSON 数组，不要其他内容：
-[{{"code": "600519", "name": "贵州茅台"}}, {{"code": "300750", "name": "宁德时代"}}, ...]
-只包含可以确认的上市公司。如果公司有多个代码，选A股代码。"""
-
+    prompt = f"从以下财经新闻标题中提取被提及的A股上市公司及股票代码。\n\n{titles}\n\n只返回JSON：[{{\"code\":\"600519\",\"name\":\"贵州茅台\"}}, ...]"
     try:
         text = news.call_qwen(prompt)
         m = re.search(r'\[.*?\]', text, re.DOTALL)
         if m:
-            tickers = json.loads(m.group())
-            return {t["code"]: t.get("name", "") for t in tickers}
-    except Exception:
-        pass
+            return {t["code"]: t.get("name","") for t in json.loads(m.group())}
+    except: pass
     return {}
-
 
 # ════ A股评分 ════
 
 def score_stocks_cn(analyzed_results, items_raw=None):
-    """
-    analyzed_results: AI 分析结果
-    items_raw: 原始新闻列表（用于 AI 提取股票）
-    """
-    # AI 批量提取
-    cn_map = {}
-    if items_raw:
-        cn_map = extract_cn_stocks(items_raw)
-
+    cn_map = extract_cn_stocks(items_raw) if items_raw else {}
     stocks = {}
     for r in analyzed_results:
-        source = r.get("source", "")
-        sw = _source_weight(source)
+        sw = _source_weight(r.get("source",""))
         sentiment = 1 if r["sentiment"] == "看涨" else (-1 if r["sentiment"] == "看跌" else 0)
-
         found = set()
-        # 正则提取 6 位代码
         for code in re.findall(r'\b(\d{6})\b', r["title"]):
-            if not code.startswith("0"):
-                found.add(code)
-
-        # AI 公司名→代码
+            if not code.startswith("0"): found.add(code)
         for code, name in cn_map.items():
-            if name and name in r["title"]:
-                found.add(code)
-
+            if name and name in r["title"]: found.add(code)
         for code in found:
             if code not in stocks:
-                stocks[code] = {"code": code, "name": "", "score": 0, "mentions": 0, "reasons": []}
-            s = stocks[code]
-            s["score"] += sentiment * sw
-            s["mentions"] += 1
-            s["reasons"].append({"title": r["title"][:60], "sentiment": r["sentiment"],
-                                   "source": source.replace("🔥 ", "")})
-
-    # 提取名称（从标题匹配）
+                stocks[code] = {"code": code, "name": cn_map.get(code,""), "score": 0, "mentions": 0, "reasons": []}
+            stocks[code]["score"] += sentiment * sw
+            stocks[code]["mentions"] += 1
+            stocks[code]["reasons"].append({"title": r["title"][:60], "sentiment": r["sentiment"], "source": r["source"].replace("🔥 ","")})
     for r in analyzed_results:
         for code in stocks:
             if code in r["title"]:
                 m = re.search(r'([\u4e00-\u9fa5]{2,6})[\(（]?' + code, r["title"])
                 if m and not stocks[code]["name"]:
                     stocks[code]["name"] = m.group(1)
-
-    ranked = sorted(stocks.values(), key=lambda x: -x["score"])
-    return ranked[:15]
-
+    return sorted(stocks.values(), key=lambda x: -x["score"])[:15]
 
 # ════ 美股评分 ════
 
 def score_stocks_us(analyzed_results, items_raw=None):
-    """
-    analyzed_results: AI 分析结果
-    items_raw: 原始新闻列表（用于 ticker 提取）
-    """
-    # 1. AI 批量提取 ticker
-    ticker_map = {}
-    if items_raw:
-        ticker_map = extract_us_tickers(items_raw)
-
+    ticker_map = extract_us_tickers(items_raw) if items_raw else {}
     stocks = {}
+    NOISE = {"THE","A","AN","IS","IT","IN","ON","AT","TO","FOR","OF","AND","OR","BUT","NOT","NO","WE","US","BE","ITS","FROM","WITH","OVER","MORE","JUST","AFTER","BACK","DOWN","EVEN","FIRST","HAS","LIKE","MAY","NEW","NEXT","ONLY","RISE","THAN","THAT","THEM","THEN","THIS","WAS","WERE"}
     for r in analyzed_results:
-        source = r.get("source", "")
-        sw = _source_weight(source)
+        sw = _source_weight(r.get("source",""))
         sentiment = 1 if r["sentiment"] == "bullish" else (-1 if r["sentiment"] == "bearish" else 0)
-        title = r.get("title", "")
-
-        # 2. 从标题精确正则匹配
-        found = set()
-        found.update(re.findall(r'\$([A-Z]{1,5})\b', title))
+        title = r.get("title","")
+        found = set(re.findall(r'\$([A-Z]{1,5})\b', title))
         found.update(re.findall(r'\(([A-Z]{1,5})\)', title))
-
-        # 3. 用 AI ticker 做公司名→ticker 映射
         for company in ticker_map.values():
             if company and company.lower() in title.lower():
                 for t, c in ticker_map.items():
-                    if c == company:
-                        found.add(t)
-
-        # 噪音过滤
-        noise = {"THE","A","AN","IS","IT","IN","ON","AT","TO","FOR","OF","AND","OR",
-                 "BUT","NOT","NO","WE","US","BE","ITS","FROM","WITH","OVER","MORE",
-                 "JUST","AFTER","BACK","DOWN","EVEN","FIRST","HAS","LIKE","MAY","NEW",
-                 "NEXT","ONLY","OVER","RISE","THAN","THAT","THEM","THEN","THIS","WAS","WERE"}
-        found = {t for t in found if t not in noise and len(t) >= 1}
-
+                    if c == company: found.add(t)
+        found = {t for t in found if t not in NOISE and len(t) >= 1}
         for ticker in found:
             ticker = ticker.upper()
             if ticker not in stocks:
-                stocks[ticker] = {"ticker": ticker, "name": "", "score": 0, "mentions": 0, "reasons": []}
-            s = stocks[ticker]
-            s["score"] += sentiment * sw
-            s["mentions"] += 1
-            s["reasons"].append({"title": title[:80], "sentiment": r["sentiment"],
-                                   "source": source.replace("🔥 ", "")})
+                stocks[ticker] = {"ticker": ticker, "name": ticker_map.get(ticker,""), "score": 0, "mentions": 0, "reasons": []}
+            stocks[ticker]["score"] += sentiment * sw
+            stocks[ticker]["mentions"] += 1
+            stocks[ticker]["reasons"].append({"title": title[:80], "sentiment": r["sentiment"], "source": r["source"].replace("🔥 ","")})
+    return sorted(stocks.values(), key=lambda x: -x["score"])[:15]
 
-    ranked = sorted(stocks.values(), key=lambda x: -x["score"])
-    return ranked[:15]
+# ════ 报告生成 ════
 
-
-# ════ 综合报告 ════
-
-def _gen_reason(ticker, reasons):
-    """AI 生成选股理由（一句话）"""
-    if not reasons:
-        return "新闻提及"
+def _gen_reason_cn(label, reasons):
+    if not reasons: return "新闻提及"
     import news
     titles = "\n".join(f"[{r['sentiment']}] {r['title'][:80]}" for r in reasons[:5])
-    prompt = f"""Based on these news mentions for {ticker}, write ONE concise sentence (under 40 words) explaining why this stock deserves attention. Focus on the key catalyst or risk. Reply with just the sentence, no extra text.
+    prompt = f"根据关于{label}的以下新闻，写一句中文选股理由（30字以内），聚焦关键催化剂或风险。只回复一句话。\n\n{titles}"
+    try: return news.call_qwen(prompt).strip().strip('"').strip("'")
+    except: return "—"
 
-{titles}"""
-    try:
-        return news.call_qwen(prompt).strip().strip('"').strip("'")
-    except:
-        return "—"
-
-
-def gen_picks_report_cn(scored, results_summary):
-    """A股选股 Markdown"""
+def gen_picks_report_cn(scored, summary):
     dt = datetime.now().strftime("%Y-%m-%d %H:%M")
-    lines = [
-        f"# 💡 A股选股参考 · {dt}",
-        "",
-        f"**扫描新闻**: {results_summary.get('total', 0)} 条 | **发现股票**: {len(scored)} 只",
-        "",
-        "> ⚠️ 本报告基于新闻情绪量化评分，不构成投资建议。决策请结合个人风险承受能力。",
-        "",
-        "---",
-        "",
-        "## 🏆 综合推荐",
-        "",
-        "| # | 股票/代码 | 情绪分 | 提及 | 选股理由 |",
-        "|---|---|---|---|---|",
-    ]
+    lines = [f"# 💡 A股选股参考 · {dt}", "", f"**扫描新闻**: {summary.get('total',0)} 条 | **发现股票**: {len(scored)} 只", "", "> ⚠️ 本报告基于新闻情绪量化评分，不构成投资建议。", "", "---", "", "## 🏆 综合推荐", "", "| # | 股票/代码 | 情绪分 | 提及 | 选股理由 |", "|---|---|---|---|---|"]
     for i, s in enumerate(scored[:10]):
-        name = s.get("name") or s.get("code", "?")
-        code = s.get("code", "")
-        reasons = s.get("reasons", [])
+        name = s.get("name") or s.get("code","?")
+        code = s.get("code","")
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
-        reason = _gen_reason(f"{name}({code})", reasons)
+        reason = _gen_reason_cn(f"{name}({code})", s.get("reasons",[]))
         lines.append(f"| {i+1} | {emoji} {name}<br><small>{code}</small> | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
-
     risks = [s for s in scored if s["score"] < -1]
     if risks:
         lines.extend(["", "## ⚠️ 风险提示", ""])
         for s in risks[:5]:
             lines.append(f"- **{s.get('name') or s.get('code')}** 情绪 {s['score']:.0f}，{s['mentions']} 次负面提及")
-
     lines.extend(["", "---", "", "📡 数据来源：新闻情绪分析 · 仅供参考"])
-
     return "\n".join(lines)
 
-
-def gen_picks_report_us(scored, results_summary):
-    """美股选股 Markdown（中文）"""
+def gen_picks_report_us(scored, summary):
     dt = datetime.now().strftime("%Y-%m-%d %H:%M")
-    lines = [
-        f"# 💡 美股选股参考 · {dt}",
-        "",
-        f"**扫描新闻**: {results_summary.get('total',0)} 篇 | **发现股票**: {len(scored)} 只",
-        "",
-        "> ⚠️ 基于新闻情绪量化评分，不构成投资建议。",
-        "",
-        "---",
-        "",
-        "## 🏆 综合推荐",
-        "",
-        "| # | 股票 | 情绪分 | 提及 | 选股理由 |",
-        "|---|---|---|---|---|",
-    ]
+    lines = [f"# 💡 美股选股参考 · {dt}", "", f"**扫描新闻**: {summary.get('total',0)} 篇 | **发现股票**: {len(scored)} 只", "", "> ⚠️ 基于新闻情绪量化评分，不构成投资建议。", "", "---", "", "## 🏆 综合推荐", "", "| # | 股票 | 情绪分 | 提及 | 选股理由 |", "|---|---|---|---|---|"]
     for i, s in enumerate(scored[:10]):
-        reasons = s.get("reasons", [])
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
-        reason = _gen_reason(f"${s['ticker']}", reasons)
+        reason = _gen_reason_cn(f"${s['ticker']}", s.get("reasons",[]))
         lines.append(f"| {i+1} | {emoji} ${s['ticker']} | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
-
     risks = [s for s in scored if s["score"] < -1]
     if risks:
         lines.extend(["", "## ⚠️ 风险提示", ""])
         for s in risks[:5]:
             lines.append(f"- **${s['ticker']}** 情绪 {s['score']:.0f}，{s['mentions']} 次负面提及")
-
     lines.extend(["", "---", "", "📡 数据来源：Yahoo Finance · CNBC · Google News | 仅供参考"])
-
     return "\n".join(lines)
 
-
-# ════ 跑分入口 ════
+# ════ 独立测试 ════
 
 if __name__ == "__main__":
-    import news
-    import scraper as sc
-    import scraper_us as sc_us
-
-    print("\n" + "="*50)
-    print("💡 A股选股评分")
-    print("="*50)
-
-    # A股
-    items_cn = sc.fetch_news(limit=30)
+    import news, scraper as sc, scraper_us as sc_us
+    print("\n💡 A股选股"); items_cn = sc.fetch_news(limit=30)
     if items_cn:
-        results_cn = news.analyze_news(items_cn)
-        picks_cn = score_stocks_cn(results_cn)
-        print(f"\n发现 {len(picks_cn)} 只股票")
-        for p in picks_cn[:5]:
-            print(f"  {p.get('name') or p['code']} {p['score']:+.1f} ({p['mentions']}次)")
-
-    print("\n" + "="*50)
-    print("💡 US Stock Picks")
-    print("="*50)
-
-    # 美股
-    items_us = sc_us.fetch_news(limit=30)
+        results_cn = news.analyze_news(items_cn); picks_cn = score_stocks_cn(results_cn, items_raw=items_cn)
+        print(f"发现 {len(picks_cn)} 只"); [print(f"  {p.get('name') or p['code']} {p['score']:+.1f}") for p in picks_cn[:5]]
+    print("\n💡 美股选股"); items_us = sc_us.fetch_news(limit=30)
     if items_us:
-        import run_us
-        results_us = run_us.analyze_us(items_us)
-        picks_us = score_stocks_us(results_us)
-        print(f"\n发现 {len(picks_us)} 个 tickers")
-        for p in picks_us[:5]:
-            print(f"  ${p['ticker']} {p['score']:+.1f} ({p['mentions']}x)")
+        import run_us; results_us = run_us.analyze_us(items_us); picks_us = score_stocks_us(results_us, items_raw=items_us)
+        print(f"发现 {len(picks_us)} tickers"); [print(f"  ${p['ticker']} {p['score']:+.1f}") for p in picks_us[:5]]
