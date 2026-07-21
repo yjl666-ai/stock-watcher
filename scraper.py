@@ -32,45 +32,38 @@ def fetch_eastmoney():
         print(f"  东方财富 失败: {e}"); return []
 
 
-def fetch_cls():
-    """财联社电报 — 国内最快财经快讯"""
-    url = "https://www.cls.cn/api/telegraph/list"
-    params = {"app": "CailianpressWeb", "os": "web", "sv": "8.4.6",
-              "rn": 30, "refresh_type": 1, "hasFirstVipArticle": 0}
-    headers = {**HEADERS, "Referer": "https://www.cls.cn/telegraph"}
+def fetch_eastmoney_news():
+    """东方财富实时财经新闻（今天的数据）"""
+    url = "https://search-api-web.eastmoney.com/search/jsonp"
+    params = {
+        "cb": "jQuery",
+        "param": json.dumps({
+            "uid": "", "keyword": "财经",
+            "type": ["cmsArticleWebOld"], "clientType": "web",
+            "clientSortWeb": "time",
+            "param": {"cmsArticleWebOld": {"searchScope": "", "sort": "time",
+                      "pageIndex": 1, "pageSize": 25, "preTag": "<em>", "postTag": "</em>"}}
+        })
+    }
     try:
-        r = requests.get(url, params=params, headers=headers, timeout=15)
-        r.raise_for_status()
-        data = r.json()
+        r = requests.get(url, params=params, headers=HEADERS, timeout=15)
+        data = json.loads(re.sub(r"^jQuery\(|\)\s*$", "", r.text))
         items = []
-        for item in data.get("data", {}).get("roll_data", [])[:30]:
-            title = item.get("title", "") or item.get("brief", "")
-            cid = item.get("id", "")
+        for item in data.get("result", {}).get("cmsArticleWebOld", [])[:25]:
+            title = re.sub(r"<[^>]+>", "", item.get("title", ""))
+            date_str = item.get("date", "")
             if title:
-                items.append({"source": "财联社", "title": title,
-                              "summary": item.get("brief", "")[:200],
-                              "link": f"https://www.cls.cn/detail/{cid}"})
-        print(f"  财联社: {len(items)} 条")
+                items.append({
+                    "source": "东方财富快讯",
+                    "title": title,
+                    "summary": re.sub(r"<[^>]+>", "", item.get("content", ""))[:200],
+                    "link": item.get("url", ""),
+                })
+        print(f"  东方财富快讯: {len(items)} 条")
         return items
     except Exception as e:
-        # 备用：直接解析 JSON 字符串（可能不是 dict 格式）
-        try:
-            raw = r.text if 'r' in dir() else ""
-            data = json.loads(raw)
-            items = []
-            roll = data.get("data", {}).get("roll_data", [])
-            for item in roll[:30]:
-                title = item.get("title", "") or item.get("brief", "")
-                cid = item.get("id", "")
-                if title:
-                    items.append({"source": "财联社", "title": title,
-                                  "summary": item.get("brief", "")[:200],
-                                  "link": f"https://www.cls.cn/detail/{cid}"})
-            print(f"  财联社(备用): {len(items)} 条")
-            return items
-        except:
-            pass
-        print(f"  财联社 失败: {e}"); return []
+        print(f"  东方财富快讯 失败: {e}")
+        return []
 
 
 def fetch_sina():
@@ -155,8 +148,8 @@ def fetch_news(limit=40):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     fetchers = [
         ("东方财富", fetch_eastmoney),
+        ("东方财富快讯", fetch_eastmoney_news),
         ("新浪财经", fetch_sina),
-        ("人民网财经", fetch_people),
     ]
     all_items = []
     print("📡 抓取财经新闻...")
