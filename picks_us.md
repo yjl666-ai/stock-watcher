@@ -1,23 +1,21 @@
-# 💡 US Stock Picks · 2026-07-21 15:23
+# 💡 美股选股参考 · 2026-07-21 17:37
 
-**News scanned**: 30 articles | **Tickers found**: 7
+**扫描新闻**: 20 篇 | **发现股票**: 5 只
 
-> ⚠️ Sentiment-based scoring only. NOT investment advice.
+> ⚠️ 基于新闻情绪量化评分，不构成投资建议。
 
 ---
 
-## 🏆 Top Picks
+## 🏆 综合推荐
 
-| # | Ticker | Sentiment | Mentions | Why |
+| # | 股票 | 情绪分 | 提及 | 选股理由 |
 |---|---|---|---|---|
-| 1 | ⚪ $VG | +1.0 | 1 | VG surges as geopolitical tensions drive natural gas prices higher, boosting its |
-| 2 | ⚪ $TSLA | +0.1 | 2 | Tesla deserves attention due to its dual exposure to AI-driven growth (via auton |
-| 3 | ⚪ $GM | +0.0 | 1 | GM deserves attention ahead of its earnings report, as results and guidance coul |
-| 4 | ⚪ $DJT | +0.0 | 1 | DJT deserves attention due to its unique monetization of Trump’s early-access po |
-| 5 | ⚪ $KO | +0.0 | 1 | Coca-Cola’s milk brand halting US production due to a cybersecurity breach poses |
-| 6 | 🔴 $SPCE | -0.9 | 2 | $SPCE deserves attention due to its direct exposure to SpaceX’s upcoming Starshi |
-| 7 | 🔴 $AMZN | -1.0 | 1 | Amazon’s closure of a major facility affecting nearly 500 workers signals potent |
+| 1 | 🟢 $SSNLF | +1.1 | 1 | 三星加码具身智能机器人，打开AI硬件新成长空间。 |
+| 2 | ⚪ $GM | +0.0 | 1 | GM财报即将发布，市场关注电动车盈利进展与北美定价策略。 |
+| 3 | ⚪ $AIR.PA | +0.0 | 1 | 空客新机型订单预期提升，但航司采购谨慎存不确定性。 |
+| 4 | ⚪ $BA | +0.0 | 1 | 空客波音新窄体机竞争加剧，但航司采购谨慎，订单增长存疑。 |
+| 5 | ⚪ $AMD | +0.0 | 1 | 地缘政治风险缓和，利好AMD全球AI芯片需求。 |
 
 ---
 
-📡 Data: Sentiment analysis from Yahoo Finance · CNBC · Google News
+📡 数据来源：Yahoo Finance · CNBC · Google News | 仅供参考
