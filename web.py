@@ -2,7 +2,13 @@
 import markdown as md_lib
 import subprocess, sys, os, re, threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# 北京时间
+TZ = timezone(timedelta(hours=8))
+
+def _bjnow():
+    return datetime.now(TZ)
 from flask import Flask
 
 HERE = Path(__file__).parent.resolve()
@@ -146,7 +152,7 @@ def _do_refresh():
                 env={**os.environ, "PYTHONIOENCODING": "utf-8"},
                 capture_output=True,
             )
-            _last_refresh = datetime.now()
+            _last_refresh = _bjnow()
             print(f"[refresh] ✅ 报告已更新 {_last_refresh}")
         except Exception as e:
             print(f"[refresh] ❌ {e}")
