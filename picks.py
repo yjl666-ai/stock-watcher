@@ -34,7 +34,17 @@ KNOWN_US = {
     "palantir": ("PLTR","Palantir"), "trump media": ("DJT","Trump Media"),
     "samsung": ("SSNLF","Samsung"), "alibaba": ("BABA","Alibaba"),
     "jd.com": ("JD","JD.com"), "venture global": ("VG","Venture Global"),
+    "airbus": ("EADSY","Airbus"), "nebius": ("NBIS","Nebius"),
+    "spotify": ("SPOT","Spotify"), "snap": ("SNAP","Snap"),
 }
+
+# 非美股后缀过滤
+NON_US_SUFFIX = {'.PA','.L','.DE','.AS','.SW','.MI','.MC','.HK','.T','.KS'}
+
+def _is_us_ticker(t):
+    for s in NON_US_SUFFIX:
+        if t.upper().endswith(s): return False
+    return len(t) <= 5 and not t[0].isdigit()
 
 def extract_us_tickers(items):
     import news
