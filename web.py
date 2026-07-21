@@ -84,7 +84,9 @@ def index():
 </head>
 <body>
 <div class="nav">
-  <a href="/history">📋 历史报告</a>
+  <a href="/">🇨🇳 A股</a>
+  <a href="/us">🇺🇸 美股</a>
+  <a href="/history">📋 历史</a>
   <a href="/refresh" style="color:#059669" title="手动刷新">🔄 刷新</a>
 </div>
 {html}
@@ -172,6 +174,39 @@ def manual_refresh():
     """手动触发刷新"""
     threading.Thread(target=_do_refresh, daemon=True).start()
     return '<meta http-equiv="refresh" content="5;url=/"><p>🔄 正在刷新，5 秒后跳回...</p>'
+
+@app.route("/us")
+def us_index():
+    """美股报告首页"""
+    files = sorted(REPORTS_DIR.glob("us_report_*.md"), reverse=True)
+    path = files[0] if files else None
+    if not path:
+        return f"<html><head><meta charset=utf-8><style>{CSS}</style></head><body><div class=err><h2>📭 暂无美股报告</h2><p>正在生成中...</p></div></body></html>"
+
+    raw = path.read_text(encoding="utf-8")
+    html = md_lib.markdown(raw, extensions=["tables", "fenced_code"])
+    name = path.stem.replace("us_report_", "")
+    update_time = _format_time("us_" + name)
+
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="900">
+<title>📊 US Market Watch</title>
+<style>{CSS}</style>
+</head>
+<body>
+<div class="nav">
+  <a href="/">🇨🇳 A股</a>
+  <a href="/us">🇺🇸 美股</a>
+  <a href="/history">📋 历史</a>
+  <a href="/refresh" style="color:#059669">🔄 刷新</a>
+</div>
+{html}
+<div class="meta">📅 更新于 {update_time} · 数据来源: Yahoo Finance · CNBC · Google News | AI: 通义千问</div>
+</body></html>"""
 
 @app.route("/health")
 def health():
