@@ -202,8 +202,9 @@ def us_index():
 <div class="nav">
   <a href="/">🇨🇳 A股</a>
   <a href="/us">🇺🇸 美股</a>
+  <a href="/picks" style="color:#d97706">💡 A股选股</a>
+  <a href="/picks/us" style="color:#d97706">💡 美股选股</a>
   <a href="/history">📋 历史</a>
-  <a href="/refresh" style="color:#059669">🔄 刷新</a>
 </div>
 {html}
 <div class="meta">📅 更新于 {update_time} · 数据来源: Yahoo Finance · CNBC · Google News | AI: 通义千问</div>
