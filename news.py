@@ -178,7 +178,15 @@ def fetch_news(limit=40):
 
 def call_qwen(prompt):
     """调通义千问 qwen-plus"""
-    api_key = Path.home().joinpath(".config", "dashscope_key.txt").read_text(encoding="utf-8").strip()
+    import os
+    # 优先环境变量（Render 上用它），其次本地文件
+    api_key = os.environ.get("DASHSCOPE_API_KEY", "")
+    if not api_key:
+        key_file = Path.home().joinpath(".config", "dashscope_key.txt")
+        if key_file.exists():
+            api_key = key_file.read_text(encoding="utf-8").strip()
+    if not api_key:
+        raise RuntimeError("DASHSCOPE_API_KEY 未设置")
     url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
