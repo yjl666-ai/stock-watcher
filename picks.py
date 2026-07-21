@@ -148,6 +148,21 @@ def score_stocks_us(analyzed_results, items_raw=None):
 
 # ════ 综合报告 ════
 
+def _gen_reason(ticker, reasons):
+    """AI 生成选股理由（一句话）"""
+    if not reasons:
+        return "新闻提及"
+    import news
+    titles = "\n".join(f"[{r['sentiment']}] {r['title'][:80]}" for r in reasons[:5])
+    prompt = f"""Based on these news mentions for {ticker}, write ONE concise sentence (under 40 words) explaining why this stock deserves attention. Focus on the key catalyst or risk. Reply with just the sentence, no extra text.
+
+{titles}"""
+    try:
+        return news.call_qwen(prompt).strip().strip('"').strip("'")
+    except:
+        return "—"
+
+
 def gen_picks_report_cn(scored, results_summary):
     """A股选股 Markdown"""
     dt = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -162,17 +177,17 @@ def gen_picks_report_cn(scored, results_summary):
         "",
         "## 🏆 综合推荐",
         "",
-        "| # | 股票 | 代码 | 情绪分 | 提及次数 | 最新动态 |",
-        "|---|---|---|---|---|---|",
+        "| # | 股票/代码 | 情绪分 | 提及 | 选股理由 |",
+        "|---|---|---|---|---|",
     ]
     for i, s in enumerate(scored[:10]):
         name = s.get("name") or s.get("code", "?")
+        code = s.get("code", "")
         reasons = s.get("reasons", [])
-        latest = reasons[0]["title"][:30] if reasons else "—"
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
-        lines.append(f"| {i+1} | {emoji} {name} | {s.get('code','')} | {s['score']:+.1f} | {s['mentions']} | {latest} |")
+        reason = _gen_reason(f"{name}({code})", reasons)
+        lines.append(f"| {i+1} | {emoji} {name}<br><small>{code}</small> | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
 
-    # 风险提示
     risks = [s for s in scored if s["score"] < -1]
     if risks:
         lines.extend(["", "## ⚠️ 风险提示", ""])
@@ -198,14 +213,14 @@ def gen_picks_report_us(scored, results_summary):
         "",
         "## 🏆 Top Picks",
         "",
-        "| # | Ticker | Sentiment | Mentions | Latest Signal |",
+        "| # | Ticker | Sentiment | Mentions | Why |",
         "|---|---|---|---|---|",
     ]
     for i, s in enumerate(scored[:10]):
         reasons = s.get("reasons", [])
-        latest = reasons[0]["title"][:40] if reasons else "—"
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
-        lines.append(f"| {i+1} | {emoji} ${s['ticker']} | {s['score']:+.1f} | {s['mentions']} | {latest} |")
+        reason = _gen_reason(f"${s['ticker']}", reasons)
+        lines.append(f"| {i+1} | {emoji} ${s['ticker']} | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
 
     risks = [s for s in scored if s["score"] < -1]
     if risks:

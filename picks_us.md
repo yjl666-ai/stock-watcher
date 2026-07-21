@@ -1,4 +1,4 @@
-# 💡 US Stock Picks · 2026-07-21 15:02
+# 💡 US Stock Picks · 2026-07-21 15:18
 
 **News scanned**: 30 articles | **Tickers found**: 6
 
@@ -8,14 +8,14 @@
 
 ## 🏆 Top Picks
 
-| # | Ticker | Sentiment | Mentions | Latest Signal |
+| # | Ticker | Sentiment | Mentions | Why |
 |---|---|---|---|---|
-| 1 | ⚪ $VG | +1.0 | 1 | Venture Global (VG) Soars as Geopolitica |
-| 2 | ⚪ $TSLA | +0.1 | 2 | Dow Jones Futures: Trump Comments Spark  |
-| 3 | ⚪ $AMZN | +0.0 | 1 | Amazon closes another major facility, ne |
-| 4 | ⚪ $GM | +0.0 | 1 | General Motors is set to report earnings |
-| 5 | ⚪ $KO | +0.0 | 1 | Coca-Cola’s milk brand halts US producti |
-| 6 | ⚪ $DJT | +0.0 | 1 | Trump Media (DJT) Climbs on Paid Early-A |
+| 1 | ⚪ $VG | +1.0 | 1 | VG surges amid geopolitical tensions driving natural gas prices higher, boosting |
+| 2 | ⚪ $TSLA | +0.1 | 2 | Tesla deserves attention due to its dual exposure to AI-driven growth (via auton |
+| 3 | ⚪ $GM | +0.0 | 1 | GM deserves attention ahead of its earnings report, as Wall Street scrutinizes i |
+| 4 | ⚪ $DJT | +0.0 | 1 | DJT deserves attention due to its unique monetization of Trump’s early-access po |
+| 5 | ⚪ $KO | +0.0 | 1 | Coca-Cola’s milk brand halting US production due to a cybersecurity breach poses |
+| 6 | 🔴 $AMZN | -1.0 | 1 | Amazon’s closure of a major facility affecting nearly 500 workers signals potent |
 
 ---
 
