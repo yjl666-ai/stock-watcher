@@ -159,7 +159,7 @@ def score_stocks_us(analyzed_results, items_raw=None):
             if company and company.lower() in title.lower():
                 for t, c in ticker_map.items():
                     if c == company: found.add(t)
-        found = {t for t in found if t not in NOISE and len(t) >= 1}
+        found = {t for t in found if t not in NOISE and len(t) >= 1 and _is_us_ticker(t)}
         for ticker in found:
             ticker = ticker.upper()
             if ticker not in stocks:
