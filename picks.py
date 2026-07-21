@@ -58,22 +58,61 @@ def _recency_weight(date_str: str) -> float:
         return 1.0
 
 
+# ════ AI A股公司提取 ════
+
+def extract_cn_stocks(items):
+    """用 AI 从A股新闻标题批量提取公司→代码"""
+    import news
+    titles = "\n".join(f"{i+1}. {it['title'][:100]}" for i, it in enumerate(items[:30]))
+    prompt = f"""从以下财经新闻标题中提取被提及的A股上市公司及其股票代码。
+
+{titles}
+
+只返回 JSON 数组，不要其他内容：
+[{{"code": "600519", "name": "贵州茅台"}}, {{"code": "300750", "name": "宁德时代"}}, ...]
+只包含可以确认的上市公司。如果公司有多个代码，选A股代码。"""
+
+    try:
+        text = news.call_qwen(prompt)
+        m = re.search(r'\[.*?\]', text, re.DOTALL)
+        if m:
+            tickers = json.loads(m.group())
+            return {t["code"]: t.get("name", "") for t in tickers}
+    except Exception:
+        pass
+    return {}
+
+
 # ════ A股评分 ════
 
-def score_stocks_cn(analyzed_results):
+def score_stocks_cn(analyzed_results, items_raw=None):
     """
-    analyzed_results: list of {sentiment, sectors, title, source, link}
-    返回: [{code, name, score, mentions, sentiment_avg, reasons}]
+    analyzed_results: AI 分析结果
+    items_raw: 原始新闻列表（用于 AI 提取股票）
     """
+    # AI 批量提取
+    cn_map = {}
+    if items_raw:
+        cn_map = extract_cn_stocks(items_raw)
+
     stocks = {}
     for r in analyzed_results:
         source = r.get("source", "")
         sw = _source_weight(source)
         sentiment = 1 if r["sentiment"] == "看涨" else (-1 if r["sentiment"] == "看跌" else 0)
 
-        # 从标题提取 6 位代码
+        found = set()
+        # 正则提取 6 位代码
         for code in re.findall(r'\b(\d{6})\b', r["title"]):
-            if code.startswith("0"): continue
+            if not code.startswith("0"):
+                found.add(code)
+
+        # AI 公司名→代码
+        for code, name in cn_map.items():
+            if name and name in r["title"]:
+                found.add(code)
+
+        for code in found:
             if code not in stocks:
                 stocks[code] = {"code": code, "name": "", "score": 0, "mentions": 0, "reasons": []}
             s = stocks[code]
@@ -200,20 +239,20 @@ def gen_picks_report_cn(scored, results_summary):
 
 
 def gen_picks_report_us(scored, results_summary):
-    """美股选股 Markdown"""
+    """美股选股 Markdown（中文）"""
     dt = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
-        f"# 💡 US Stock Picks · {dt}",
+        f"# 💡 美股选股参考 · {dt}",
         "",
-        f"**News scanned**: {results_summary.get('total',0)} articles | **Tickers found**: {len(scored)}",
+        f"**扫描新闻**: {results_summary.get('total',0)} 篇 | **发现股票**: {len(scored)} 只",
         "",
-        "> ⚠️ Sentiment-based scoring only. NOT investment advice.",
+        "> ⚠️ 基于新闻情绪量化评分，不构成投资建议。",
         "",
         "---",
         "",
-        "## 🏆 Top Picks",
+        "## 🏆 综合推荐",
         "",
-        "| # | Ticker | Sentiment | Mentions | Why |",
+        "| # | 股票 | 情绪分 | 提及 | 选股理由 |",
         "|---|---|---|---|---|",
     ]
     for i, s in enumerate(scored[:10]):
@@ -224,11 +263,11 @@ def gen_picks_report_us(scored, results_summary):
 
     risks = [s for s in scored if s["score"] < -1]
     if risks:
-        lines.extend(["", "## ⚠️ Risk Alerts", ""])
+        lines.extend(["", "## ⚠️ 风险提示", ""])
         for s in risks[:5]:
-            lines.append(f"- **${s['ticker']}** score {s['score']:.0f}, {s['mentions']} bearish mentions")
+            lines.append(f"- **${s['ticker']}** 情绪 {s['score']:.0f}，{s['mentions']} 次负面提及")
 
-    lines.extend(["", "---", "", "📡 Data: Sentiment analysis from Yahoo Finance · CNBC · Google News"])
+    lines.extend(["", "---", "", "📡 数据来源：Yahoo Finance · CNBC · Google News | 仅供参考"])
 
     return "\n".join(lines)
 

@@ -240,7 +240,7 @@ def picks_us():
     html = md_lib.markdown(raw, extensions=["tables"])
     return f"""<!DOCTYPE html>
 <html lang=zh-CN>
-<head><meta charset=utf-8><title>💡 US Picks</title><style>{CSS}</style></head>
+<head><meta charset=utf-8><title>💡 美股选股参考</title><style>{CSS}</style></head>
 <body>
 <div class=nav>
   <a href="/">🇨🇳 A股</a><a href="/us">🇺🇸 美股</a>

@@ -32,7 +32,7 @@ print("\n" + "="*60)
 print("💡 生成选股评分...")
 print("="*60)
 import picks
-picks_cn = picks.score_stocks_cn(results)
+picks_cn = picks.score_stocks_cn(results, items_raw=items)
 picks_report = picks.gen_picks_report_cn(picks_cn, {"total": len(items)})
 picks_path = Path(__file__).parent / "picks_cn.md"
 picks_path.write_text(picks_report, encoding="utf-8")
