@@ -80,7 +80,7 @@ def index():
   <a href="/refresh" style="color:#059669">🔄 刷新</a>
 </div>
 {html}
-<div class="meta">📅 更新于 {update_time} · 下次自动刷新 {next_str} · 间隔 6 小时</div>
+<div class="meta">📅 更新于 {update_time} · 下次自动刷新 {next_str}（每日北京时间 9:00）</div>
 <div class="footer">数据来源：Yahoo Finance · CNBC · Google News | AI 分析：通义千问</div>
 </body>
 </html>"""
@@ -142,18 +142,19 @@ def view_report(name):
 </body></html>"""
 
 
-# ════ 自动刷新 ════
+# ════ 自动刷新 — 每日北京时间 9:00 ════
 
-REFRESH_INTERVAL = int(os.environ.get("REFRESH_HOURS", "6"))
 _last_refresh = None
 _refresh_lock = threading.Lock()
 
 
 def _next_refresh_time():
-    global _last_refresh
-    if _last_refresh:
-        return _last_refresh + timedelta(hours=REFRESH_INTERVAL)
-    return None
+    """下次刷新时间：今天或明天的 9:00 北京时间"""
+    now = _bjnow()
+    target = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    if now >= target:
+        target += timedelta(days=1)
+    return target
 
 
 def _do_refresh():
@@ -176,11 +177,20 @@ def _do_refresh():
 
 
 def _scheduler():
-    threading.Timer(30, _do_refresh).start()
-    def loop():
+    """每日北京时间 9:00 跑一次"""
+    def schedule_next():
+        next_run = _next_refresh_time()
+        delay = (next_run - _bjnow()).total_seconds()
+        if delay < 0:
+            delay = 0
+        print(f"[scheduler] 下次刷新: {next_run} ({(delay)/60:.0f} 分钟后)")
+        threading.Timer(delay, _run_and_reschedule).start()
+
+    def _run_and_reschedule():
         _do_refresh()
-        threading.Timer(REFRESH_INTERVAL * 3600, loop).start()
-    threading.Timer(30 + REFRESH_INTERVAL * 3600, loop).start()
+        schedule_next()  # 安排下次
+
+    schedule_next()
 
 
 @app.route("/refresh")
@@ -198,7 +208,7 @@ if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 5001))
     print(f"\n📊 美股观察网站: http://localhost:{port}")
-    print(f"   自动刷新: 每 {REFRESH_INTERVAL} 小时")
+    print(f"   每日刷新: 北京时间 9:00")
     print(f"   手动刷新: http://localhost:{port}/refresh\n")
     threading.Thread(target=_scheduler, daemon=True).start()
     app.run(host=host, port=port, debug=False)
