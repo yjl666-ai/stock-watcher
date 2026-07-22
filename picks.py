@@ -203,27 +203,31 @@ def gen_picks_report(scored, summary):
         trend = "强势" if d5 > 3 else ("弱势" if d5 < -5 else "震荡")
         pos = "高位" if p52 > 80 else ("低位" if p52 < 20 else "中位")
         
-        # 多空建议
+        # 多空建议 — 每只都给价格参考
         if s["score"] >= 1.5 and d5 > -3 and p52 < 80:
             action = "📈 做多"
-            entry = f"回调到 \${p*0.97:.2f} 附近"
-            stop = f"\${p*0.93:.2f}"
+            entry = f"回调 \${p*0.97:.2f} 附近买入"
+            stop = f"止损 \${p*0.93:.2f}"
         elif s["score"] >= 0 and p52 < 25 and d5 > -5:
             action = "📈 可做多(轻仓)"
-            entry = f"\${p*0.95:.2f} 以下"
-            stop = f"\${p*0.90:.2f}"
-        elif p52 > 85 or d5 < -5:
-            action = "📉 不宜做多"
-            entry = "—"
-            stop = "—"
+            entry = f"\${p*0.95:.2f} 以下可买入"
+            stop = f"止损 \${p*0.90:.2f}"
+        elif p52 > 85:
+            action = "⚠️ 高位不追"
+            entry = f"等回调到 \${p*0.90:.2f} 以下再考虑"
+            stop = f"跌破 \${p*0.85:.2f} 应离场"
+        elif d5 < -5:
+            action = "🔴 急跌观望"
+            entry = f"等止跌信号，站稳 \${p*1.02:.2f} 再考虑"
+            stop = f"跌破 \${p*0.92:.2f} 应止损"
         elif s["score"] < -0.5:
-            action = "📉 考虑做空"
-            entry = f"反弹到 \${p*1.03:.2f} 附近"
-            stop = f"\${p*1.06:.2f}"
+            action = "📉 偏空"
+            entry = f"反弹 \${p*1.03:.2f} 可考虑做空"
+            stop = f"突破 \${p*1.08:.2f} 止损"
         else:
             action = "⚪ 观望"
-            entry = "—"
-            stop = "—"
+            entry = f"突破 \${p*1.03:.2f} 转多 / 跌破 \${p*0.95:.2f} 转空"
+            stop = f"方向不明，轻仓或不做"
         
         lines.extend([
             f"### {i+1}. {display} | 情绪 {s['score']:+.1f} | 现价 \${p:.2f}",
