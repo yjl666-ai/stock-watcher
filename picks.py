@@ -122,31 +122,27 @@ def fetch_quote(ticker):
 
 
 def _gen_advice(ticker, score, q):
-    """根据情绪+技术面生成中文建议"""
-    if not q: return "暂无行情"
-    p, d5, d20 = q["price"], q["chg_5d"], q["chg_20d"]
-    p52 = q["pct_52w"]
-    trend = "强势" if d5 > 3 else ("弱势" if d5 < -5 else "震荡")
-    position = "高位" if p52 > 80 else ("低位" if p52 < 20 else "中位")
+    """根据情绪+技术面生成一句话操作建议"""
+    if not q: return "—"
+    p, d5, p52 = q["price"], q["chg_5d"], q["pct_52w"]
+    trend = "📈强势" if d5 > 3 else ("📉弱势" if d5 < -5 else "📊震荡")
+    pos = "高位" if p52 > 80 else ("低位" if p52 < 20 else "中位")
     
-    lines = []
-    lines.append(f"💰 \${p:.2f} | 今日 {q['chg_day']:+.2f}% | 5日 {d5:+.2f}%")
-    lines.append(f"📊 {trend} · {position}(52周{p52}%位)")
-    
+    # 核心建议
     if score >= 1.5 and d5 > -3 and p52 < 80:
-        lines.append("✅ 建议关注：情绪+技术双支撑")
+        signal = "✅ 关注"
     elif score >= 1 and p52 < 30:
-        lines.append("🟡 低位待反转，观望等信号")
+        signal = "🟡 等反转"
     elif p52 > 85:
-        lines.append("⚠️ 高位追涨风险大，等回调")
+        signal = "⚠️ 高位慎入"
     elif d5 < -5:
-        lines.append("🔴 短期急跌，等止跌再考虑")
+        signal = "🔴 观望"
     elif score < 0:
-        lines.append("❌ 情绪偏空，暂不建议")
+        signal = "❌ 暂避"
     else:
-        lines.append("⚪ 中性观望")
+        signal = "⚪ 中性"
     
-    return "<br>".join(lines)
+    return f"{signal} · {trend} · {pos}({p52}%位)"
 
 
 def _gen_reason_cn(label, reasons):
