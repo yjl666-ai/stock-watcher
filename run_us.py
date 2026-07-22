@@ -162,4 +162,22 @@ if __name__ == "__main__":
     report_path = reports_dir / name
     report_path.write_text(report, encoding="utf-8")
     print(f"\n✅ 美股报告: {report_path}")
+
+    # 存档到 GitHub（让历史不丢）
+    try:
+        import subprocess
+        subprocess.run(["git", "add", str(report_path.relative_to(HERE)),
+                        str(picks_path.relative_to(HERE))],
+                       cwd=str(HERE), check=True, capture_output=True)
+        msg = f"chore: 自动存档 {name}"
+        result = subprocess.run(["git", "commit", "-m", msg],
+                              cwd=str(HERE), capture_output=True, text=True)
+        if result.returncode == 0:
+            subprocess.run(["git", "push", "origin", "main"],
+                          cwd=str(HERE), capture_output=True, timeout=30)
+            print(f"📦 已存档到 GitHub")
+        else:
+            print(f"⚠️  无变化或 commit 失败")
+    except Exception as e:
+        print(f"⚠️  存档失败: {e}")
     print("\n" + report[:2000] + ("..." if len(report) > 2000 else ""))

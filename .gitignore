@@ -1,11 +1,11 @@
-# 运行时生成的文件不入库
+# 临时文件不入库
 picks_cn.md
 picks_us.md
 us_report_latest.md
 
-# 报告目录（保留少量示例）
+# 报告目录 — 但 us_report_*.md 是历史存档，要保留
 reports/
-*.db
+!reports/us_report_*.md
 
 # Python
 __pycache__/
