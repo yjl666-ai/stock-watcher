@@ -64,14 +64,13 @@ def index():
     next_str = next_refresh.strftime("%H:%M") if next_refresh else "—"
 
     return f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="900">
-<title>📊 美股每日观察</title>
-<style>{CSS}</style>
-</head>
+    <html lang="zh-CN">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>📊 美股每日观察</title>
+    <style>{CSS}</style>
+    </head>
 <body>
 <div class="nav">
   <a href="/">🏠 首页</a>
