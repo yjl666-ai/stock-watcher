@@ -3,6 +3,7 @@ import markdown as md_lib
 import subprocess, sys, os, re, threading
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from flask import Flask
 
 HERE = Path(__file__).parent.resolve()
 REPORTS_DIR = HERE / "reports"
