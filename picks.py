@@ -189,6 +189,57 @@ def gen_picks_report(scored, summary):
         for s in risks[:5]:
             lines.append(f"- **{s.get('name') or s['ticker']}** 情绪 {s['score']:.0f}，{s['mentions']} 次负面提及")
 
+    # ════ 逐只股票深度分析 ════
+    lines.extend(["", "---", "", "## 📋 逐只股票深度分析", ""])
+    for i, s in enumerate(scored[:6]):
+        name = s.get("name", "")
+        ticker = s["ticker"]
+        display = f"{name} (${ticker})" if name else f"${ticker}"
+        q = quotes.get(ticker)
+        if not q: continue
+        
+        p, d5, d20 = q["price"], q["chg_5d"], q["chg_20d"]
+        p52 = q["pct_52w"]
+        trend = "强势" if d5 > 3 else ("弱势" if d5 < -5 else "震荡")
+        pos = "高位" if p52 > 80 else ("低位" if p52 < 20 else "中位")
+        
+        # 多空建议
+        if s["score"] >= 1.5 and d5 > -3 and p52 < 80:
+            action = "📈 做多"
+            entry = f"回调到 \${p*0.97:.2f} 附近"
+            stop = f"\${p*0.93:.2f}"
+        elif s["score"] >= 0 and p52 < 25 and d5 > -5:
+            action = "📈 可做多(轻仓)"
+            entry = f"\${p*0.95:.2f} 以下"
+            stop = f"\${p*0.90:.2f}"
+        elif p52 > 85 or d5 < -5:
+            action = "📉 不宜做多"
+            entry = "—"
+            stop = "—"
+        elif s["score"] < -0.5:
+            action = "📉 考虑做空"
+            entry = f"反弹到 \${p*1.03:.2f} 附近"
+            stop = f"\${p*1.06:.2f}"
+        else:
+            action = "⚪ 观望"
+            entry = "—"
+            stop = "—"
+        
+        lines.extend([
+            f"### {i+1}. {display} | 情绪 {s['score']:+.1f} | 现价 \${p:.2f}",
+            "",
+            f"| 指标 | 数值 | 信号 |",
+            f"|------|------|:--:|",
+            f"| 今日涨跌 | {q['chg_day']:+.2f}% | {'🟢' if q['chg_day'] > 1 else ('🔴' if q['chg_day'] < -1 else '⚪')} |",
+            f"| 5日涨跌 | {d5:+.2f}% | {'🟢' if d5 > 3 else ('🔴' if d5 < -5 else '🟡')} |",
+            f"| 20日涨跌 | {d20:+.2f}% | {'🟢' if d20 > 5 else ('🔴' if d20 < -5 else '🟡')} |",
+            f"| MA5 vs MA20 | \${q['ma5']:.0f} vs \${q['ma20']:.0f} | {'🟢 金叉' if q['ma5'] > q['ma20'] else '🔴 死叉'} |",
+            f"| 52周位置 | {p52}% | {'🔴 接近高点' if p52 > 80 else ('🟢 接近低点' if p52 < 20 else '🟡 中位')} |",
+            "",
+            f"**操作**: {action} | **入场**: {entry} | **止损**: {stop}",
+            "",
+        ])
+    
     lines.extend(["", "---", "", "📡 实时行情：Yahoo Finance | 新闻：Yahoo Finance · CNBC · Google News | AI：通义千问"])
     return "\n".join(lines)
 
