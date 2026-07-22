@@ -1,0 +1,13 @@
+# 运行时生成的文件不入库
+picks_cn.md
+picks_us.md
+us_report_latest.md
+
+# 报告目录（保留少量示例）
+reports/
+*.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
