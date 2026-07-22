@@ -1,5 +1,5 @@
-"""picks.py — 美股新闻情绪选股评分引擎"""
-import re, json, sys
+"""picks.py — 美股新闻情绪选股评分引擎 + 实时行情"""
+import re, json, sys, requests as _req
 from pathlib import Path
 from datetime import datetime
 from collections import Counter
@@ -35,6 +35,8 @@ KNOWN_US = {
     "jd.com": ("JD","JD.com"), "venture global": ("VG","Venture Global"),
     "airbus": ("EADSY","Airbus"), "nebius": ("NBIS","Nebius"),
     "spotify": ("SPOT","Spotify"), "snap": ("SNAP","Snap"),
+    "crowdstrike": ("CRWD","CrowdStrike"), "lockheed": ("LMT","Lockheed"),
+    "iren": ("IREN","IREN Ltd"),
 }
 
 NON_US_SUFFIX = {'.PA','.L','.DE','.AS','.SW','.MI','.MC','.HK','.T','.KS'}
@@ -46,16 +48,13 @@ def _is_us_ticker(t):
 
 
 def extract_us_tickers(items):
-    """内置映射 + AI 补充"""
     import news
     result = {}
-    # 内置匹配
     for it in items:
         t = it["title"].lower()
         for kw, (ticker, name) in KNOWN_US.items():
             if kw in t:
                 result[ticker] = name
-    # AI 提取
     titles = "\n".join(f"{i+1}. {it['title'][:100]}" for i, it in enumerate(items[:30]))
     prompt = f"从以下英文财经新闻标题中提取被提及的美股上市公司及股票代码。\n\n{titles}\n\n只返回JSON：[{{\"ticker\":\"AAPL\",\"company\":\"Apple\"}}, ...]"
     try:
@@ -97,9 +96,60 @@ def score_stocks_us(analyzed_results, items_raw=None):
                                               "source": r["source"].replace("🔥 ","")})
     return sorted(stocks.values(), key=lambda x: -x["score"])[:15]
 
+# ════ Yahoo Finance 实时行情 ════
+
+def fetch_quote(ticker):
+    """查实时行情，返回 {price, chg_day, chg_5d, chg_20d, pct_52w, advice}"""
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1mo&interval=1d"
+        d = _req.get(url, headers={"User-Agent":"Mozilla/5.0"}, timeout=8).json()["chart"]["result"][0]
+        m = d["meta"]
+        closes = [c for c in d["indicators"]["quote"][0]["close"] if c is not None]
+        price = m["regularMarketPrice"]
+        prev = closes[-2] if len(closes) >= 2 else price
+        chg_day = round((price - prev) / prev * 100, 2)
+        ma5 = sum(closes[-5:])/5 if len(closes)>=5 else price
+        ma20 = sum(closes[-20:])/20 if len(closes)>=20 else price
+        chg_5d = round((closes[-1]/closes[-6]-1)*100, 2) if len(closes)>=6 else 0
+        chg_20d = round((closes[-1]/closes[-21]-1)*100, 2) if len(closes)>=21 else 0
+        hi, lo = m.get("fiftyTwoWeekHigh",price), m.get("fiftyTwoWeekLow",price)
+        pct_52 = round((price - lo) / (hi - lo) * 100) if hi != lo else 50
+        return {
+            "price": price, "chg_day": chg_day, "chg_5d": chg_5d,
+            "chg_20d": chg_20d, "pct_52w": pct_52, "ma5": ma5, "ma20": ma20,
+        }
+    except: return None
+
+
+def _gen_advice(ticker, score, q):
+    """根据情绪+技术面生成中文建议"""
+    if not q: return "暂无行情"
+    p, d5, d20 = q["price"], q["chg_5d"], q["chg_20d"]
+    p52 = q["pct_52w"]
+    trend = "强势" if d5 > 3 else ("弱势" if d5 < -5 else "震荡")
+    position = "高位" if p52 > 80 else ("低位" if p52 < 20 else "中位")
+    
+    lines = []
+    lines.append(f"💰 \${p:.2f} | 今日 {q['chg_day']:+.2f}% | 5日 {d5:+.2f}%")
+    lines.append(f"📊 {trend} · {position}(52周{p52}%位)")
+    
+    if score >= 1.5 and d5 > -3 and p52 < 80:
+        lines.append("✅ 建议关注：情绪+技术双支撑")
+    elif score >= 1 and p52 < 30:
+        lines.append("🟡 低位待反转，观望等信号")
+    elif p52 > 85:
+        lines.append("⚠️ 高位追涨风险大，等回调")
+    elif d5 < -5:
+        lines.append("🔴 短期急跌，等止跌再考虑")
+    elif score < 0:
+        lines.append("❌ 情绪偏空，暂不建议")
+    else:
+        lines.append("⚪ 中性观望")
+    
+    return "<br>".join(lines)
+
 
 def _gen_reason_cn(label, reasons):
-    """AI 中文选股理由"""
     if not reasons: return "新闻提及"
     import news
     titles = "\n".join(f"[{r['sentiment']}] {r['title'][:80]}" for r in reasons[:5])
@@ -109,28 +159,41 @@ def _gen_reason_cn(label, reasons):
 
 
 def gen_picks_report(scored, summary):
-    """美股选股 Markdown"""
+    """美股选股 Markdown（含实时行情+操作建议）"""
     dt = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    # 批量查行情
+    quotes = {}
+    for s in scored[:10]:
+        quotes[s["ticker"]] = fetch_quote(s["ticker"])
+    
     lines = [f"# 💡 美股选股参考 · {dt}", "",
              f"**扫描新闻**: {summary.get('total',0)} 篇 | **发现股票**: {len(scored)} 只",
-             "", "> ⚠️ 基于新闻情绪量化评分，不构成投资建议。", "",
+             "", "> ⚠️ 基于新闻情绪+实时行情量化评分，不构成投资建议。", "",
              "---", "", "## 🏆 综合推荐", "",
-             "| # | 股票 | 情绪分 | 提及 | 选股理由 |",
-             "|---|---|---|---|---|"]
+             "| # | 股票 | 情绪分 | 实时行情 | 选股理由 | 操作建议 |",
+             "|---|---|---|---|---|---|"]
+    
     for i, s in enumerate(scored[:10]):
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
-        name = s.get("name", "")  # KNOWN_US 里存的公司名
+        name = s.get("name", "")
         display = f"{name} ${s['ticker']}" if name else f"${s['ticker']}"
         reason = _gen_reason_cn(display, s.get("reasons",[]))
-        lines.append(f"| {i+1} | {emoji} {display} | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
+        q = quotes.get(s["ticker"])
+        if q:
+            quote_str = f"\${q['price']:.2f}<br><small>{q['chg_day']:+.2f}% / 5日{q['chg_5d']:+.2f}%</small>"
+        else:
+            quote_str = "—"
+        advice = _gen_advice(s["ticker"], s["score"], q) if q else "—"
+        lines.append(f"| {i+1} | {emoji} {display} | {s['score']:+.1f} | {quote_str} | {reason[:60]} | {advice} |")
 
     risks = [s for s in scored if s["score"] < -1]
     if risks:
         lines.extend(["", "## ⚠️ 风险提示", ""])
         for s in risks[:5]:
-            lines.append(f"- **${s['ticker']}** 情绪 {s['score']:.0f}，{s['mentions']} 次负面提及")
+            lines.append(f"- **{s.get('name') or s['ticker']}** 情绪 {s['score']:.0f}，{s['mentions']} 次负面提及")
 
-    lines.extend(["", "---", "", "📡 数据来源：Yahoo Finance · CNBC · Google News | 仅供参考"])
+    lines.extend(["", "---", "", "📡 实时行情：Yahoo Finance | 新闻：Yahoo Finance · CNBC · Google News | AI：通义千问"])
     return "\n".join(lines)
 
 
