@@ -131,7 +131,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("📡 抓取美股新闻...")
     print("=" * 60)
-    items = scraper_us.fetch_news(limit=30)
+    items = scraper_us.fetch_news(limit=60)
 
     cnt = Counter(i["source"] for i in items)
     print(f"\n总计 {len(items)} 条，来源：")
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("🤖 AI 分析中...")
     print("=" * 60)
-    results = analyze_us(items[:30])
+    results = analyze_us(items[:60])
 
     report = gen_report_us(results)
 
