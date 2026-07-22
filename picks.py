@@ -119,8 +119,10 @@ def gen_picks_report(scored, summary):
              "|---|---|---|---|---|"]
     for i, s in enumerate(scored[:10]):
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
-        reason = _gen_reason_cn(f"${s['ticker']}", s.get("reasons",[]))
-        lines.append(f"| {i+1} | {emoji} ${s['ticker']} | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
+        name = s.get("name", "")  # KNOWN_US 里存的公司名
+        display = f"{name} ${s['ticker']}" if name else f"${s['ticker']}"
+        reason = _gen_reason_cn(display, s.get("reasons",[]))
+        lines.append(f"| {i+1} | {emoji} {display} | {s['score']:+.1f} | {s['mentions']} | {reason[:80]} |")
 
     risks = [s for s in scored if s["score"] < -1]
     if risks:
