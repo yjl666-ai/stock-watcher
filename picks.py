@@ -173,8 +173,9 @@ def gen_picks_report(scored, summary):
     for i, s in enumerate(scored[:10]):
         emoji = "🟢" if s["score"] > 1 else ("🔴" if s["score"] < 0 else "⚪")
         name = s.get("name", "")
-        display = f"{name} ${s['ticker']}" if name else f"${s['ticker']}"
-        reason = _gen_reason_cn(display, s.get("reasons",[]))
+        display_text = f"{name} ${s['ticker']}" if name else f"${s['ticker']}"
+        display = f"[{display_text}](https://trading.bbae.com/zh-CN/mymarket?symbol={s['ticker']})"
+        reason = _gen_reason_cn(display_text, s.get("reasons",[]))
         q = quotes.get(s["ticker"])
         if q:
             quote_str = f"\${q['price']:.2f}<br><small>{q['chg_day']:+.2f}% / 5日{q['chg_5d']:+.2f}%</small>"
@@ -194,7 +195,8 @@ def gen_picks_report(scored, summary):
     for i, s in enumerate(scored[:6]):
         name = s.get("name", "")
         ticker = s["ticker"]
-        display = f"{name} (${ticker})" if name else f"${ticker}"
+        display_text = f"{name} (${ticker})" if name else f"${ticker}"
+        display = f"[{display_text}](https://trading.bbae.com/zh-CN/mymarket?symbol={ticker})"
         q = quotes.get(ticker)
         if not q: continue
         
