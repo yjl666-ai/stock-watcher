@@ -177,7 +177,7 @@ def _do_refresh():
 
 
 def _scheduler():
-    """每日北京时间 9:00 跑一次"""
+    """每日北京时间 9:00 跑一次。首次启动立即刷新。"""
     def schedule_next():
         next_run = _next_refresh_time()
         delay = (next_run - _bjnow()).total_seconds()
@@ -188,8 +188,11 @@ def _scheduler():
 
     def _run_and_reschedule():
         _do_refresh()
-        schedule_next()  # 安排下次
+        schedule_next()
 
+    # 立即跑一次，然后安排下次
+    print("[scheduler] 首次启动，立即刷新...")
+    threading.Thread(target=_do_refresh, daemon=True).start()
     schedule_next()
 
 
