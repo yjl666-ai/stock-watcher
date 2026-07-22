@@ -192,13 +192,21 @@ def gen_picks_report(scored, summary):
 
     # ════ 逐只股票深度分析 ════
     lines.extend(["", "---", "", "## 📋 逐只股票深度分析", ""])
-    for i, s in enumerate(scored[:6]):
+    for i, s in enumerate(scored[:10]):
         name = s.get("name", "")
         ticker = s["ticker"]
         display_text = f"{name} (${ticker})" if name else f"${ticker}"
         display = f"[{display_text}](https://trading.bbae.com/zh-CN/mymarket?symbol={ticker})"
         q = quotes.get(ticker)
-        if not q: continue
+        if not q:
+            # 查不到行情也显示基本信息
+            lines.extend([
+                f"### {i+1}. {display} | 情绪 {s['score']:+.1f} | 行情暂无",
+                "",
+                f"**操作**: 数据缺失，请到 [BBAE](https://trading.bbae.com/zh-CN/mymarket?symbol={ticker}) 查看",
+                "",
+            ])
+            continue
         
         p, d5, d20 = q["price"], q["chg_5d"], q["chg_20d"]
         p52 = q["pct_52w"]
