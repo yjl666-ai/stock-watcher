@@ -1,64 +1,39 @@
-"""scraper_us.py — 美股财经新闻抓取"""
+"""scraper_us.py — 美股财经新闻抓取（6源）"""
 import requests, re, json
 from pathlib import Path
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
 
-def fetch_yahoo():
+def _parse_rss_items(url, source_name, limit=40):
+    """通用 RSS 解析"""
+    import xml.etree.ElementTree as ET
     items = []
     try:
-        r = requests.get("https://finance.yahoo.com/news/rssindex", headers=HEADERS, timeout=15)
-        import xml.etree.ElementTree as ET
-        clean = re.sub(r"<!\[CDATA\[|\]\]>", "", r.text)
-        root = ET.fromstring(clean)
-        for item in list(root.iter("item"))[:20]:
-            title = item.findtext("title", "").strip()
-            link = item.findtext("link", "").strip()
-            desc = re.sub(r"<[^>]+>", "", item.findtext("description", "")).strip()[:200]
-            if title and link and "Yahoo" not in title:
-                items.append({"source": "Yahoo Finance", "title": title, "summary": desc, "link": link})
-        print(f"  Yahoo Finance: {len(items)} 条")
-    except Exception as e:
-        print(f"  Yahoo Finance 失败: {e}")
-    return items
-
-
-def fetch_cnbc():
-    items = []
-    try:
-        r = requests.get("https://www.cnbc.com/id/100003114/device/rss/rss.html", headers=HEADERS, timeout=15)
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(r.text)
-        for item in list(root.iter("item"))[:20]:
-            title = item.findtext("title", "").strip()
-            link = item.findtext("link", "").strip()
-            desc = re.sub(r"<[^>]+>", "", item.findtext("description", "")).strip()[:200]
-            if title and link:
-                items.append({"source": "CNBC", "title": title, "summary": desc, "link": link})
-        print(f"  CNBC: {len(items)} 条")
-    except Exception as e:
-        print(f"  CNBC 失败: {e}")
-    return items
-
-
-def fetch_google():
-    items = []
-    try:
-        url = "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB"
         r = requests.get(url, headers=HEADERS, timeout=15)
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(r.text)
-        for item in list(root.iter("item"))[:20]:
+        # 修复非法 XML 实体（如 Benzinga 的 &nbsp;）
+        clean = re.sub(r"&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)[a-zA-Z]+;", "&amp;", r.text)
+        clean = re.sub(r"<!\[CDATA\[|\]\]>", "", clean)
+        root = ET.fromstring(clean)
+        for item in list(root.iter("item"))[:limit]:
             title = item.findtext("title", "").strip()
             link = item.findtext("link", "").strip()
             desc = re.sub(r"<[^>]+>", "", item.findtext("description", "")).strip()[:200]
-            if title and link and "Google" not in title:
-                items.append({"source": "Google News", "title": title, "summary": desc, "link": link})
-        print(f"  Google News: {len(items)} 条")
+            # 过滤掉源站自身的标题
+            skip = {"Yahoo", "CNBC", "Google", "Benzinga", "Investing"}
+            if title and link and not any(s in title for s in skip):
+                items.append({"source": source_name, "title": title, "summary": desc, "link": link})
     except Exception as e:
-        print(f"  Google News 失败: {e}")
+        print(f"  {source_name} 失败: {e}")
     return items
+
+
+def fetch_yahoo(): return _parse_rss_items("https://finance.yahoo.com/news/rssindex", "Yahoo Finance", limit=40)
+def fetch_cnbc(): return _parse_rss_items("https://www.cnbc.com/id/100003114/device/rss/rss.html", "CNBC", limit=40)
+def fetch_google(): return _parse_rss_items("https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB", "Google News", limit=40)
+def fetch_google_tech(): return _parse_rss_items("https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtVnVHZ0pWVXlnQVAB", "Google Tech", limit=30)
+def fetch_benzinga(): return _parse_rss_items("https://www.benzinga.com/feed", "Benzinga", limit=40)
+def fetch_investing(): return _parse_rss_items("https://www.investing.com/rss/news.rss", "Investing.com", limit=30)
 
 
 def deduplicate(items, threshold=0.65):
@@ -81,13 +56,20 @@ def deduplicate(items, threshold=0.65):
     return merged
 
 
-def fetch_news(limit=30):
+def fetch_news(limit=60):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from collections import Counter
-    fetchers = [("Yahoo Finance", fetch_yahoo), ("CNBC", fetch_cnbc), ("Google News", fetch_google)]
+    fetchers = [
+        ("Yahoo Finance", fetch_yahoo),
+        ("CNBC", fetch_cnbc),
+        ("Google News", fetch_google),
+        ("Google Tech", fetch_google_tech),
+        ("Benzinga", fetch_benzinga),
+        ("Investing.com", fetch_investing),
+    ]
     all_items = []
-    print("📡 抓取美股新闻...")
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    print(f"📡 抓取美股新闻（{len(fetchers)} 个源）...")
+    with ThreadPoolExecutor(max_workers=6) as ex:
         futures = {ex.submit(f): name for name, f in fetchers}
         for f in as_completed(futures):
             try: all_items.extend(f.result())
