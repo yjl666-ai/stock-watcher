@@ -151,7 +151,7 @@ if __name__ == "__main__":
     # ════ 选股评分 ════
     import picks
     picks_us = picks.score_stocks_us(results, items_raw=items)
-    picks_report = picks.gen_picks_report_us(picks_us, {"total": len(items)})
+    picks_report = picks.gen_picks_report(picks_us, {"total": len(items)})
     picks_path = Path(__file__).parent / "picks_us.md"
     picks_path.write_text(picks_report, encoding="utf-8")
     print(f"\n💡 美股选股: {picks_path} ({len(picks_us)} tickers)")
