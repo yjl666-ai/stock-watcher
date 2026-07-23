@@ -20,13 +20,18 @@ def analyze_us(news_list):
 Title: {n['title']}
 Summary: {n['summary']}
 
-Reply in JSON only:
+Return ONLY valid JSON (no other text):
 {{
   "sentiment": "bullish" or "bearish" or "neutral",
-  "sectors": ["affected sector1", "sector2"],
-  "tickers": ["AAPL", "TSLA"],
+  "sectors": ["Technology", "Healthcare", "Finance", "Energy", "Consumer", "Automotive", "Semiconductor", "Media", "Defense", "Retail", "Crypto", "Biotech"],
+  "tickers": ["AAPL", "MSFT", "TSLA"],
   "impact": "one sentence explaining the impact logic"
-}}"""
+}}
+
+IMPORTANT RULES:
+1. "sectors" must include 1-3 relevant sector names from the list above. ALWAYS include at least one sector.
+2. "tickers" must include actual US ticker symbols (1-5 uppercase letters, NYSE/NASDAQ only) if the news mentions any specific publicly traded company. Use [] if no company is mentioned.
+3. Return ONLY the JSON object, nothing else."""
         try:
             text = news.call_qwen(prompt)
             m = re.search(r'\{.*?\}', text, re.DOTALL)
@@ -73,12 +78,45 @@ def gen_report_us(results):
             hot[s] += w
     heatmap = sorted(hot.items(), key=lambda x: -x[1])[:8]
 
+    # ── 后备: 关键词板块检测（当 AI 返回空时） ──
+    if len(heatmap) < 3:
+        sector_kw = {
+            "Technology": ["ai", "tech", "chip", "semiconductor", "nvidia", "intel", "amd", "software", "cloud", "quantum", "data", "robot", "cyber", "saas"],
+            "Finance": ["bank", "finance", "fed", "interest", "treasury", "bond", "goldman", "jpmorgan", "morgan stanley", "crypto", "bitcoin", "insurance"],
+            "Healthcare": ["health", "medical", "drug", "pharma", "biotech", "pfizer", "moderna", "vaccine", "hospital", "clinical"],
+            "Energy": ["energy", "oil", "gas", "solar", "exxon", "renewable", "carbon", "shell", "petroleum"],
+            "Consumer": ["consumer", "retail", "walmart", "nike", "amazon", "starbucks", "coca-cola", "restaurant", "food"],
+            "Automotive": ["auto", "car", "ev", "electric vehicle", "tesla", "ford", "gm", "driverless", "autonomous"],
+            "Defense": ["defense", "military", "lockheed", "boeing", "space", "aerospace", "weapon"],
+            "Media": ["meta", "netflix", "disney", "streaming", "social media", "advertising", "entertainment"],
+            "Semiconductor": ["semiconductor", "chip", "nvidia", "amd", "intel", "tsmc", "processor", "gpu"],
+        }
+        fb = Counter()
+        for r in results:
+            w = 1 if r["sentiment"] == "bullish" else (-1 if r["sentiment"] == "bearish" else 0)
+            text = (r.get("title","") + " " + r.get("summary","")).lower()
+            for sec, kws in sector_kw.items():
+                if any(kw in text for kw in kws):
+                    fb[sec] += w
+                    break
+        if fb:
+            heatmap = sorted(fb.items(), key=lambda x: -x[1])[:8]
+
     # 股票
     tickers = Counter()
     for r in results:
         for t in r.get("tickers", []):
             tickers[t.upper()] += 1
     top_tickers = tickers.most_common(6)
+
+    # ── 后备: 从新闻标题提取个股（当 AI 返回空时） ──
+    if len(top_tickers) < 3:
+        title_text = " ".join(r.get("title","") for r in results).lower()
+        for kw, (ticker, _) in picks.KNOWN_US.items():
+            if kw in title_text:
+                cnt = title_text.count(kw)
+                tickers[ticker] += cnt
+        top_tickers = tickers.most_common(6)
 
     lines = [
         f"# 📊 美股市场观察 · {today}",
